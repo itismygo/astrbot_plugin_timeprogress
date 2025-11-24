@@ -1,0 +1,14 @@
+{
+  "timezone": {
+    "description": "时区设置",
+    "type": "string",
+    "default": "Asia/Shanghai",
+    "hint": "设置时区,如 Asia/Shanghai(北京), UTC, America/New_York 等"
+  },
+  "debug_time": {
+    "description": "显示时间调试信息",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后会在日志中输出详细的时间信息,用于调试时间不准确的问题"
+  }
+}

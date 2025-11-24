@@ -1,6 +1,6 @@
 name: astrbot_plugin_timeprogress
-desc: 生成今天时间进度可视化卡片图片
+desc: 用来可视化时间的
 help: 输入 /time 查看今天的时间进度卡片
 version: v1.0.0
-author: TimeProgress
-repo: https://github.com/example/astrbot_plugin_timeprogress
+author: Willixrain
+repo: https://github.com/itismygo/astrbot_plugin_timeprogress

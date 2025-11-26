@@ -18,7 +18,7 @@ from astrbot.api import logger
     "astrbot_plugin_timeprogress",
     "TimeProgress",
     "生成时间进度可视化卡片图片",
-    "1.2.0",
+    "1.3.0",
     "https://github.com/example/astrbot_plugin_timeprogress"
 )
 class TimeProgressPlugin(Star):
@@ -156,6 +156,38 @@ class TimeProgressPlugin(Star):
             "title": "本月",
             "current": str(now.day),
             "total": str(total_days),
+            "unit": "天",
+            "percentage": percentage
+        }
+
+    def calculate_week_data(self) -> dict:
+        """计算本周的时间数据"""
+        config = self.context.get_config()
+        timezone_str = config.get("timezone", "Asia/Shanghai")
+        debug_time = config.get("debug_time", False)
+
+        try:
+            tz = ZoneInfo(timezone_str)
+            now = datetime.now(tz)
+            if debug_time:
+                logger.info(f"[时间调试] 使用时区: {timezone_str}")
+        except Exception as e:
+            logger.warning(f"时区 {timezone_str} 无效,使用系统本地时间: {e}")
+            now = datetime.now()
+
+        weekday = now.weekday()
+        current_day = weekday + 1
+        hours_today = now.hour + (now.minute / 60)
+        current_value = (current_day - 1) + (hours_today / 24)
+        percentage = (current_value / 7) * 100
+
+        if debug_time:
+            logger.info(f"[时间调试] 本周: 第{current_day}天/7天, 进度{percentage:.1f}%")
+
+        return {
+            "title": "本周",
+            "current": str(current_day),
+            "total": "7",
             "unit": "天",
             "percentage": percentage
         }
@@ -434,6 +466,21 @@ class TimeProgressPlugin(Star):
         except Exception as e:
             logger.error(f"处理时间进度指令失败: {e}")
             yield event.plain_result(f"❌ 生成时间卡片失败: {str(e)}")
+
+    @filter.command("week")
+    async def week_progress(self, event: AstrMessageEvent):
+        """显示本周的时间进度卡片"""
+        try:
+            data = self.calculate_week_data()
+            image_path = await self.draw_time_card(data)
+            yield event.image_result(image_path)
+            try:
+                os.unlink(image_path)
+            except:
+                pass
+        except Exception as e:
+            logger.error(f"处理本周进度指令失败: {e}")
+            yield event.plain_result(f"❌ 生成本周卡片失败: {str(e)}")
 
     @filter.command("month")
     async def month_progress(self, event: AstrMessageEvent):

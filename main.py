@@ -221,7 +221,10 @@ class TimeProgressPlugin(Star):
             "current": str(day_of_year),
             "total": str(total_days),
             "unit": "天",
-            "percentage": percentage
+            "percentage": percentage,
+            "year": now.year,
+            "day_of_year": day_of_year,
+            "total_days": total_days
         }
 
     async def draw_time_card(self, data: dict) -> str:
@@ -381,6 +384,218 @@ class TimeProgressPlugin(Star):
             logger.error("请确保已安装 Playwright: pip install playwright && playwright install chromium")
             raise
 
+    async def draw_year_matrix_card(self, data: dict) -> str:
+        """
+        使用点阵矩阵样式渲染年度进度卡片
+
+        Args:
+            data: 年度数据字典
+
+        Returns:
+            图片文件路径
+        """
+        year = data['year']
+        day_of_year = data['day_of_year']
+        total_days = data['total_days']
+        percentage = data['percentage']
+
+        # 生成点阵 HTML
+        dots_html = ""
+        for day_num in range(1, total_days + 1):
+            if day_num < day_of_year:
+                status = "passed"
+            elif day_num == day_of_year:
+                status = "today"
+            else:
+                status = "future"
+            dots_html += f'<div class="dot {status}"></div>\n'
+
+        html_template = f'''
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+
+        body {{
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            background: #09090b;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 400px;
+            height: 480px;
+            padding: 0;
+        }}
+
+        .card {{
+            width: 100%;
+            background: #111111;
+            border: 1px solid #27272a;
+            border-radius: 0;
+            padding: 24px 32px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+        }}
+
+        .header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-top: 12px;
+            margin-bottom: 32px;
+            color: #a1a1aa;
+        }}
+
+        .year {{
+            font-size: 28px;
+            font-weight: bold;
+            color: #d4d4d8;
+            letter-spacing: 2px;
+        }}
+
+        .stats {{
+            font-size: 20px;
+            font-weight: 500;
+        }}
+
+        .stats .current {{
+            color: #fafafa;
+        }}
+
+        .stats .separator {{
+            color: #52525b;
+        }}
+
+        .stats .unit {{
+            color: #71717a;
+            font-size: 18px;
+            margin-left: 4px;
+        }}
+
+        .grid {{
+            display: grid;
+            grid-template-columns: repeat(19, 1fr);
+            gap: 6px;
+            margin: 0 auto;
+            width: fit-content;
+            margin-bottom: 32px;
+        }}
+
+        @media (min-width: 640px) {{
+            .grid {{
+                gap: 12px;
+            }}
+        }}
+
+        .dot {{
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }}
+
+        @media (min-width: 640px) {{
+            .dot {{
+                width: 14px;
+                height: 14px;
+            }}
+        }}
+
+        .dot.passed {{
+            background: #fafafa;
+            box-shadow: 0 0 4px rgba(255, 255, 255, 0.3);
+        }}
+
+        .dot.today {{
+            background: #f59e0b;
+            transform: scale(1.25);
+            box-shadow: 0 0 12px rgba(245, 158, 11, 0.8);
+            animation: pulse 2s ease-in-out infinite;
+            z-index: 10;
+            position: relative;
+        }}
+
+        .dot.future {{
+            background: #52525b;
+        }}
+
+        @keyframes pulse {{
+            0%, 100% {{
+                opacity: 1;
+            }}
+            50% {{
+                opacity: 0.7;
+            }}
+        }}
+
+        .footer {{
+            text-align: center;
+            color: #d4d4d8;
+            font-size: 18px;
+            font-weight: 500;
+        }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="header">
+            <span class="year">{year}</span>
+            <div class="stats">
+                <span class="current">{day_of_year}</span>
+                <span class="separator">/</span>
+                <span>{total_days}</span>
+                <span class="unit">天</span>
+            </div>
+        </div>
+
+        <div class="grid">
+            {dots_html}
+        </div>
+
+        <div class="footer">
+            {percentage:.1f}% Complete
+        </div>
+    </div>
+</body>
+</html>
+        '''
+
+        try:
+            logger.info("使用 Playwright 渲染点阵矩阵年度卡片...")
+
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page(
+                    viewport={'width': 400, 'height': 480},
+                    device_scale_factor=3
+                )
+
+                await page.set_content(html_template)
+                await page.wait_for_timeout(800)
+
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
+                await page.screenshot(
+                    path=temp_file.name,
+                    full_page=False,
+                    type='png',
+                    omit_background=False
+                )
+
+                await browser.close()
+
+                logger.info(f"✅ 成功生成点阵矩阵年度卡片: {temp_file.name}")
+                return temp_file.name
+
+        except Exception as e:
+            logger.error(f"❌ 点阵矩阵渲染失败: {e}")
+            raise
+
     async def generate_card_image(self) -> str:
         """
         生成时间卡片图片
@@ -500,15 +715,62 @@ class TimeProgressPlugin(Star):
 
     @filter.command("year")
     async def year_progress(self, event: AstrMessageEvent):
-        """显示本年的时间进度卡片"""
+        """
+        显示本年的时间进度卡片
+
+        用法:
+            /year - 显示进度条样式（默认）
+            /year 0 - 显示进度条样式
+            /year 1 - 显示点阵矩阵样式
+        """
         try:
+            # 解析命令参数
+            message_text = event.message_str.strip()
+            parts = message_text.split()
+
+            style = 0  # 默认进度条样式
+            if len(parts) == 2:
+                try:
+                    style = int(parts[1])
+                    if style not in [0, 1]:
+                        yield event.plain_result(
+                            "❌ 参数错误\n"
+                            "用法：\n"
+                            "  /year - 进度条样式（默认）\n"
+                            "  /year 0 - 进度条样式\n"
+                            "  /year 1 - 点阵矩阵样式"
+                        )
+                        return
+                except ValueError:
+                    yield event.plain_result("❌ 参数必须是数字 0 或 1")
+                    return
+            elif len(parts) > 2:
+                yield event.plain_result(
+                    "❌ 参数过多\n"
+                    "用法：\n"
+                    "  /year - 进度条样式（默认）\n"
+                    "  /year 0 - 进度条样式\n"
+                    "  /year 1 - 点阵矩阵样式"
+                )
+                return
+
+            # 计算年度数据
             data = self.calculate_year_data()
-            image_path = await self.draw_time_card(data)
+
+            # 根据样式参数选择渲染方法
+            if style == 1:
+                image_path = await self.draw_year_matrix_card(data)
+            else:
+                image_path = await self.draw_time_card(data)
+
+            # 发送图片
             yield event.image_result(image_path)
+            # 清理临时文件
             try:
                 os.unlink(image_path)
             except:
                 pass
+
         except Exception as e:
             logger.error(f"处理本年进度指令失败: {e}")
             yield event.plain_result(f"❌ 生成本年卡片失败: {str(e)}")

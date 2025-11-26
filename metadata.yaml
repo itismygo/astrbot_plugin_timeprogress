@@ -1,6 +1,6 @@
 name: astrbot_plugin_timeprogress
 desc: 用来可视化时间的
-help: 输入 /time 查看今天的时间进度卡片
-version: v1.0.0
+help: 输入 /time 查看今天的时间进度卡片，/month 查看本月进度，/year 查看本年进度
+version: v1.1.0
 author: Willixrain
 repo: https://github.com/itismygo/astrbot_plugin_timeprogress

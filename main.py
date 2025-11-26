@@ -36,7 +36,9 @@ class TimeProgressPlugin(Star):
                 return None
             hour = int(parts[0])
             minute = int(parts[1])
-            if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            if not (0 <= hour <= 24 and 0 <= minute <= 59):
+                return None
+            if hour == 24 and minute != 0:
                 return None
             return (hour, minute)
         except (ValueError, AttributeError):

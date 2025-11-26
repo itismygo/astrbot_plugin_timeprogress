@@ -18,7 +18,7 @@ from astrbot.api import logger
     "astrbot_plugin_timeprogress",
     "TimeProgress",
     "生成时间进度可视化卡片图片",
-    "1.1.0",
+    "1.2.0",
     "https://github.com/example/astrbot_plugin_timeprogress"
 )
 class TimeProgressPlugin(Star):
@@ -28,7 +28,21 @@ class TimeProgressPlugin(Star):
         super().__init__(context)
         logger.info("时间进度卡片插件已加载")
 
-    def calculate_time_data(self) -> dict:
+    def parse_time_string(self, time_str: str):
+        """解析时间字符串为小时和分钟"""
+        try:
+            parts = time_str.strip().split(':')
+            if len(parts) != 2:
+                return None
+            hour = int(parts[0])
+            minute = int(parts[1])
+            if not (0 <= hour <= 23 and 0 <= minute <= 59):
+                return None
+            return (hour, minute)
+        except (ValueError, AttributeError):
+            return None
+
+    def calculate_time_data(self, start_time: str = None, end_time: str = None) -> dict:
         """
         计算今天的时间数据
 
@@ -58,7 +72,49 @@ class TimeProgressPlugin(Star):
             logger.info(f"[时间调试] 年: {now.year}, 月: {now.month}, 日: {now.day}")
             logger.info(f"[时间调试] 时: {now.hour}, 分: {now.minute}, 秒: {now.second}")
 
-        # 今天 - 小时数
+        # 如果提供了自定义时间段
+        if start_time and end_time:
+            start_parsed = self.parse_time_string(start_time)
+            end_parsed = self.parse_time_string(end_time)
+
+            if start_parsed and end_parsed:
+                start_h, start_m = start_parsed
+                end_h, end_m = end_parsed
+
+                current_hours = now.hour + (now.minute / 60)
+                start_hours = start_h + (start_m / 60)
+                end_hours = end_h + (end_m / 60)
+
+                # 判断是否跨天
+                if end_hours < start_hours:
+                    # 跨天情况
+                    total_hours = (24 - start_hours) + end_hours
+
+                    # 计算当前进度（考虑跨天）
+                    if current_hours >= start_hours:
+                        # 当前时间在今天的开始时间之后
+                        elapsed_hours = current_hours - start_hours
+                    else:
+                        # 当前时间在明天（已过午夜）
+                        elapsed_hours = (24 - start_hours) + current_hours
+
+                    elapsed_hours = max(0, min(elapsed_hours, total_hours))
+                else:
+                    # 同一天
+                    total_hours = end_hours - start_hours
+                    elapsed_hours = max(0, min(current_hours - start_hours, total_hours))
+
+                percentage = (elapsed_hours / total_hours) * 100 if total_hours > 0 else 0
+
+                return {
+                    "title": f"{start_time}-{end_time}",
+                    "current": f"{elapsed_hours:.1f}",
+                    "total": f"{total_hours:.1f}",
+                    "unit": "小时",
+                    "percentage": percentage
+                }
+
+        # 默认行为：0:00 到当前时间
         hours = now.hour
         minutes = now.minute
         current_value = hours + (minutes / 60)
@@ -319,18 +375,61 @@ class TimeProgressPlugin(Star):
         显示今天的时间进度卡片
 
         用法:
-            /time - 显示今天的进度
+            /time - 显示今天的进度（0:00 到当前时间）
+            /time 14:00 21:00 - 显示自定义时间段的进度
         """
         try:
-            # 生成并发送卡片
-            image_path = await self.generate_card_image()
-            yield event.image_result(image_path)
+            # 解析命令参数
+            message_text = event.message_str.strip()
+            parts = message_text.split()
 
-            # 清理临时文件
-            try:
-                os.unlink(image_path)
-            except:
-                pass
+            # 检查是否有参数
+            if len(parts) == 3:  # /time HH:MM HH:MM
+                start_time = parts[1]
+                end_time = parts[2]
+
+                # 验证时间格式
+                start_parsed = self.parse_time_string(start_time)
+                end_parsed = self.parse_time_string(end_time)
+
+                if not start_parsed:
+                    yield event.plain_result(f"❌ 开始时间格式错误，请使用 HH:MM 格式（如 14:00）")
+                    return
+
+                if not end_parsed:
+                    yield event.plain_result(f"❌ 结束时间格式错误，请使用 HH:MM 格式（如 21:00）")
+                    return
+
+                # 生成自定义时间段卡片
+                data = self.calculate_time_data(start_time, end_time)
+                image_path = await self.draw_time_card(data)
+                yield event.image_result(image_path)
+
+                # 清理临时文件
+                try:
+                    os.unlink(image_path)
+                except:
+                    pass
+
+            elif len(parts) == 1:  # /time（无参数）
+                # 默认行为：生成并发送卡片
+                image_path = await self.generate_card_image()
+                yield event.image_result(image_path)
+
+                # 清理临时文件
+                try:
+                    os.unlink(image_path)
+                except:
+                    pass
+
+            else:
+                # 参数数量错误
+                yield event.plain_result(
+                    "❌ 参数错误\n"
+                    "用法：\n"
+                    "  /time - 显示今天的进度\n"
+                    "  /time 14:00 21:00 - 显示自定义时间段的进度"
+                )
 
         except Exception as e:
             logger.error(f"处理时间进度指令失败: {e}")

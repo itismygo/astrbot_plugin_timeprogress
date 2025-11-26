@@ -18,7 +18,7 @@ from astrbot.api import logger
     "astrbot_plugin_timeprogress",
     "TimeProgress",
     "生成时间进度可视化卡片图片",
-    "1.3.0",
+    "1.4.0",
     "https://github.com/example/astrbot_plugin_timeprogress"
 )
 class TimeProgressPlugin(Star):
@@ -255,51 +255,51 @@ class TimeProgressPlugin(Star):
 
         body {{
             font-family: 'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei UI', sans-serif;
-            background: #F2F2F7;
+            background: white;
             padding: 0;
             margin: 0;
             display: flex;
             justify-content: center;
             align-items: center;
-            width: 680px;
-            height: 360px;
+            width: 420px;
+            height: 240px;
         }}
 
         .card {{
-            width: 680px;
-            height: 360px;
+            width: 420px;
             background: white;
-            border-radius: 40px;
-            padding: 40px;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 0;
+            padding: 32px;
+            box-shadow: none;
+            border: none;
             display: flex;
             flex-direction: column;
         }}
 
         .title {{
-            font-size: 72px;
-            font-weight: 900;
-            color: #000000;
+            font-size: 36px;
+            font-weight: 700;
+            color: #1d1d1f;
             line-height: 1.2;
-            letter-spacing: -1px;
-            margin-bottom: 20px;
+            letter-spacing: -0.5px;
+            margin-bottom: 16px;
         }}
 
         .progress-container {{
             width: 100%;
-            height: 80px;
-            background: #E5E5EA;
-            border-radius: 24px;
+            height: 32px;
+            background: #e5e5ea;
+            border-radius: 8px;
             overflow: hidden;
             position: relative;
-            margin-bottom: 24px;
+            margin-bottom: 16px;
+            box-shadow: inset 0 1px 2px 0 rgba(0, 0, 0, 0.05);
         }}
 
         .progress-fill {{
             height: 100%;
-            background: #2C2C2E;
-            border-radius: 24px;
+            background: #27272a;
+            border-radius: 8px;
             transition: width 1s ease-out;
             width: {data['percentage']}%;
         }}
@@ -311,18 +311,18 @@ class TimeProgressPlugin(Star):
         }}
 
         .percentage {{
-            font-size: 48px;
+            font-size: 30px;
             font-weight: bold;
-            color: #000000;
-            letter-spacing: -1px;
+            color: #1d1d1f;
+            letter-spacing: -0.5px;
             line-height: 1;
         }}
 
         .details {{
-            font-size: 28px;
-            color: #8E8E93;
+            font-size: 18px;
+            color: #86868b;
             font-family: 'Noto Sans Mono CJK SC', 'Consolas', 'Monaco', monospace;
-            margin-top: 8px;
+            margin-top: 4px;
             letter-spacing: 0.5px;
         }}
     </style>
@@ -351,7 +351,7 @@ class TimeProgressPlugin(Star):
 
                 # 创建页面,设置视口大小
                 page = await browser.new_page(
-                    viewport={'width': 680, 'height': 360},
+                    viewport={'width': 420, 'height': 240},
                     device_scale_factor=2  # 2倍分辨率,提升清晰度
                 )
 

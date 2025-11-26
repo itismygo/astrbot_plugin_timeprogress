@@ -316,6 +316,7 @@ class TimeProgressPlugin(Star):
             color: #1d1d1f;
             letter-spacing: -0.5px;
             line-height: 1;
+            font-family: 'Noto Sans Mono CJK SC', 'Consolas', 'Monaco', monospace;
         }}
 
         .details {{

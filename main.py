@@ -6,12 +6,17 @@ AstrBot 时间进度卡片插件
 import os
 import tempfile
 import calendar
+import base64
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from playwright.async_api import async_playwright
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
+
+# 获取插件目录路径
+PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
+FONT_PATH = os.path.join(PLUGIN_DIR, "fonts", "LXGWWenKai-Regular.ttf")
 
 
 @register(
@@ -26,7 +31,27 @@ class TimeProgressPlugin(Star):
 
     def __init__(self, context: Context):
         super().__init__(context)
+        self._font_base64_cache = None
         logger.info("时间进度卡片插件已加载")
+
+    def _get_current_time(self):
+        """获取当前时间，支持配置的时区"""
+        config = self.context.get_config()
+        timezone_str = config.get("timezone", "Asia/Shanghai")
+        debug_time = config.get("debug_time", False)
+
+        try:
+            tz = ZoneInfo(timezone_str)
+            now = datetime.now(tz)
+            if debug_time:
+                logger.info(f"[时间调试] 使用时区: {timezone_str}")
+        except Exception as e:
+            logger.warning(f"时区 {timezone_str} 无效,使用系统本地时间: {e}")
+            now = datetime.now()
+            if debug_time:
+                logger.info(f"[时间调试] 使用系统本地时间")
+        
+        return now, debug_time
 
     def parse_time_string(self, time_str: str):
         """解析时间字符串为小时和分钟"""
@@ -51,22 +76,7 @@ class TimeProgressPlugin(Star):
         Returns:
             包含时间数据的字典
         """
-        # 获取配置
-        config = self.context.get_config()
-        timezone_str = config.get("timezone", "Asia/Shanghai")
-        debug_time = config.get("debug_time", False)
-
-        # 获取当前时间 - 支持时区
-        try:
-            tz = ZoneInfo(timezone_str)
-            now = datetime.now(tz)
-            if debug_time:
-                logger.info(f"[时间调试] 使用时区: {timezone_str}")
-        except Exception as e:
-            logger.warning(f"时区 {timezone_str} 无效,使用系统本地时间: {e}")
-            now = datetime.now()
-            if debug_time:
-                logger.info(f"[时间调试] 使用系统本地时间")
+        now, debug_time = self._get_current_time()
 
         # 输出调试信息
         if debug_time:
@@ -133,18 +143,7 @@ class TimeProgressPlugin(Star):
 
     def calculate_month_data(self) -> dict:
         """计算本月的时间数据"""
-        config = self.context.get_config()
-        timezone_str = config.get("timezone", "Asia/Shanghai")
-        debug_time = config.get("debug_time", False)
-
-        try:
-            tz = ZoneInfo(timezone_str)
-            now = datetime.now(tz)
-            if debug_time:
-                logger.info(f"[时间调试] 使用时区: {timezone_str}")
-        except Exception as e:
-            logger.warning(f"时区 {timezone_str} 无效,使用系统本地时间: {e}")
-            now = datetime.now()
+        now, debug_time = self._get_current_time()
 
         total_days = calendar.monthrange(now.year, now.month)[1]
         hours_today = now.hour + (now.minute / 60)
@@ -164,18 +163,7 @@ class TimeProgressPlugin(Star):
 
     def calculate_week_data(self) -> dict:
         """计算本周的时间数据"""
-        config = self.context.get_config()
-        timezone_str = config.get("timezone", "Asia/Shanghai")
-        debug_time = config.get("debug_time", False)
-
-        try:
-            tz = ZoneInfo(timezone_str)
-            now = datetime.now(tz)
-            if debug_time:
-                logger.info(f"[时间调试] 使用时区: {timezone_str}")
-        except Exception as e:
-            logger.warning(f"时区 {timezone_str} 无效,使用系统本地时间: {e}")
-            now = datetime.now()
+        now, debug_time = self._get_current_time()
 
         weekday = now.weekday()
         current_day = weekday + 1
@@ -196,18 +184,7 @@ class TimeProgressPlugin(Star):
 
     def calculate_year_data(self) -> dict:
         """计算本年的时间数据"""
-        config = self.context.get_config()
-        timezone_str = config.get("timezone", "Asia/Shanghai")
-        debug_time = config.get("debug_time", False)
-
-        try:
-            tz = ZoneInfo(timezone_str)
-            now = datetime.now(tz)
-            if debug_time:
-                logger.info(f"[时间调试] 使用时区: {timezone_str}")
-        except Exception as e:
-            logger.warning(f"时区 {timezone_str} 无效,使用系统本地时间: {e}")
-            now = datetime.now()
+        now, debug_time = self._get_current_time()
 
         total_days = 366 if calendar.isleap(now.year) else 365
         day_of_year = now.timetuple().tm_yday
@@ -229,6 +206,45 @@ class TimeProgressPlugin(Star):
             "total_days": total_days
         }
 
+    def _get_font_base64(self) -> str:
+        """读取本地字体文件并转换为 base64"""
+        try:
+            if os.path.exists(FONT_PATH):
+                with open(FONT_PATH, 'rb') as f:
+                    font_data = f.read()
+                return base64.b64encode(font_data).decode('utf-8')
+            else:
+                logger.warning(f"字体文件不存在: {FONT_PATH}")
+                return None
+        except Exception as e:
+            logger.error(f"读取字体文件失败: {e}")
+            return None
+
+    async def _render_html_to_image(self, html_content: str, width: int, height: int, scale_factor: int = 2) -> str:
+        """通用 Playwright 渲染方法"""
+        try:
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page(
+                    viewport={'width': width, 'height': height},
+                    device_scale_factor=scale_factor
+                )
+                await page.set_content(html_content)
+                await page.wait_for_timeout(500)
+                
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
+                await page.screenshot(
+                    path=temp_file.name,
+                    full_page=False,
+                    type='png',
+                    omit_background=False
+                )
+                await browser.close()
+                return temp_file.name
+        except Exception as e:
+            logger.error(f"Playwright 渲染失败: {e}")
+            raise
+
     async def draw_time_card(self, data: dict) -> str:
         """
         使用 Playwright 异步渲染 HTML 生成高清时间卡片图片
@@ -239,6 +255,31 @@ class TimeProgressPlugin(Star):
         Returns:
             图片文件路径
         """
+        # 获取字体 base64
+        font_base64 = self._get_font_base64()
+
+        # 构建字体 CSS
+        if font_base64:
+            font_face_css = f'''
+        @font-face {{
+            font-family: 'LXGW WenKai';
+            src: url(data:font/truetype;base64,{font_base64}) format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }}
+            '''
+            main_font = "'LXGW WenKai'"
+            logger.info("使用本地霞鹜文楷字体")
+        else:
+            font_face_css = '''
+        @font-face {
+            font-family: 'Noto Sans CJK SC';
+            src: local('Noto Sans CJK SC'), local('NotoSansCJKsc-Regular');
+        }
+            '''
+            main_font = "'Noto Sans CJK SC'"
+            logger.warning("使用系统字体作为备用")
+
         # HTML 模板 - 基于原始 TimeCard.tsx 设计
         html_template = f'''
 <!DOCTYPE html>
@@ -253,13 +294,10 @@ class TimeProgressPlugin(Star):
             box-sizing: border-box;
         }}
 
-        @font-face {{
-            font-family: 'Noto Sans CJK SC';
-            src: local('Noto Sans CJK SC'), local('NotoSansCJKsc-Regular');
-        }}
+        {font_face_css}
 
         body {{
-            font-family: 'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei UI', sans-serif;
+            font-family: {main_font}, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei UI', sans-serif;
             background: white;
             padding: 0;
             margin: 0;
@@ -321,13 +359,13 @@ class TimeProgressPlugin(Star):
             color: #1d1d1f;
             letter-spacing: -0.5px;
             line-height: 1;
-            font-family: 'Noto Sans Mono CJK SC', 'Consolas', 'Monaco', monospace;
+            font-family: {main_font}, 'Consolas', 'Monaco', monospace;
         }}
 
         .details {{
             font-size: 18px;
             color: #86868b;
-            font-family: 'Noto Sans Mono CJK SC', 'Consolas', 'Monaco', monospace;
+            font-family: {main_font}, 'Consolas', 'Monaco', monospace;
             margin-top: 4px;
             letter-spacing: 0.5px;
         }}
@@ -350,36 +388,9 @@ class TimeProgressPlugin(Star):
 
         try:
             logger.info("使用 Playwright 异步渲染时间卡片...")
-
-            async with async_playwright() as p:
-                # 启动浏览器 (无头模式)
-                browser = await p.chromium.launch(headless=True)
-
-                # 创建页面,设置视口大小
-                page = await browser.new_page(
-                    viewport={'width': 420, 'height': 240},
-                    device_scale_factor=2  # 2倍分辨率,提升清晰度
-                )
-
-                # 加载 HTML 内容
-                await page.set_content(html_template)
-
-                # 等待渲染完成
-                await page.wait_for_timeout(500)
-
-                # 截图保存
-                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
-                await page.screenshot(
-                    path=temp_file.name,
-                    full_page=False,
-                    type='png',
-                    omit_background=False
-                )
-
-                await browser.close()
-
-                logger.info(f"✅ 成功生成高清时间卡片: {temp_file.name} (Playwright异步渲染)")
-                return temp_file.name
+            temp_file_name = await self._render_html_to_image(html_template, 420, 240, 2)
+            logger.info(f"✅ 成功生成高清时间卡片: {temp_file_name} (Playwright异步渲染)")
+            return temp_file_name
 
         except Exception as e:
             logger.error(f"❌ Playwright 渲染失败: {e}")
@@ -412,6 +423,24 @@ class TimeProgressPlugin(Star):
                 status = "future"
             dots_html += f'<div class="dot {status}"></div>\n'
 
+        # 获取字体 base64
+        font_base64 = self._get_font_base64()
+
+        # 构建字体 CSS
+        if font_base64:
+            font_face_css = f'''
+        @font-face {{
+            font-family: 'LXGW WenKai';
+            src: url(data:font/truetype;base64,{font_base64}) format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }}
+            '''
+            main_font = "'LXGW WenKai', 'Consolas', 'Monaco', monospace"
+        else:
+            font_face_css = ""
+            main_font = "'Consolas', 'Monaco', 'Courier New', monospace"
+
         html_template = f'''
 <!DOCTYPE html>
 <html>
@@ -425,8 +454,10 @@ class TimeProgressPlugin(Star):
             box-sizing: border-box;
         }}
 
+        {font_face_css}
+
         body {{
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-family: {main_font};
             background: #09090b;
             display: flex;
             justify-content: center;
@@ -570,29 +601,9 @@ class TimeProgressPlugin(Star):
 
         try:
             logger.info("使用 Playwright 渲染点阵矩阵年度卡片...")
-
-            async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
-                page = await browser.new_page(
-                    viewport={'width': 400, 'height': 480},
-                    device_scale_factor=3
-                )
-
-                await page.set_content(html_template)
-                await page.wait_for_timeout(800)
-
-                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
-                await page.screenshot(
-                    path=temp_file.name,
-                    full_page=False,
-                    type='png',
-                    omit_background=False
-                )
-
-                await browser.close()
-
-                logger.info(f"✅ 成功生成点阵矩阵年度卡片: {temp_file.name}")
-                return temp_file.name
+            temp_file_name = await self._render_html_to_image(html_template, 400, 480, 3)
+            logger.info(f"✅ 成功生成点阵矩阵年度卡片: {temp_file_name}")
+            return temp_file_name
 
         except Exception as e:
             logger.error(f"❌ 点阵矩阵渲染失败: {e}")

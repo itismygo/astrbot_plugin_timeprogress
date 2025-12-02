@@ -133,11 +133,47 @@ playwright install chromium
 - `Europe/London` - 伦敦时间
 - `UTC` - 协调世界时
 
+## 自定义字体
+
+插件默认使用 [霞鹜文楷](https://github.com/lxgw/LxgwWenKai) 字体。如需更换为其他字体，请按以下步骤操作：
+
+### 更换字体方法
+
+1. **准备字体文件**
+   - 下载你想使用的 TTF 格式字体文件
+   - 确保字体支持中文显示
+
+2. **替换字体文件**
+   - 进入插件目录下的 `fonts` 文件夹
+   - 将原有的 `LXGWWenKai-Regular.ttf` 文件备份或删除
+   - 将新字体文件重命名为 `LXGWWenKai-Regular.ttf` 并放入该目录
+
+3. **重启 AstrBot**
+   - 重启后插件会自动加载新字体
+
+### 推荐字体
+
+| 字体名称 | 风格 | 下载地址 |
+|---------|------|----------|
+| 霞鹜文楷 | 楷体，优雅 | [GitHub](https://github.com/lxgw/LxgwWenKai) |
+| 思源黑体 | 黑体，现代 | [GitHub](https://github.com/adobe-fonts/source-han-sans) |
+| 思源宋体 | 宋体，传统 | [GitHub](https://github.com/adobe-fonts/source-han-serif) |
+| 得意黑 | 现代创意 | [GitHub](https://github.com/atelier-anchor/smiley-sans) |
+| 仓耳今楷 | 楷体变体 | [仓耳字库](http://tsanger.cn/) |
+
+### 注意事项
+
+- 字体文件必须是 `.ttf` 格式
+- 文件名必须为 `LXGWWenKai-Regular.ttf`（区分大小写）
+- 如果字体文件不存在或加载失败，插件会自动使用系统备用字体（Noto Sans CJK SC）
+- 较大的字体文件可能会略微增加图片生成时间
+
 ## 技术实现
 
 - 使用 Playwright 无头浏览器渲染 HTML 模板
 - 高分辨率渲染（2-3 倍），确保高清输出
 - 点阵矩阵样式采用 CSS Grid 布局和动画效果
+- 字体文件通过 Base64 编码嵌入 HTML，确保跨平台一致性
 - 自动清理临时文件
 
 ## 作者
